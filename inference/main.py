@@ -181,5 +181,5 @@ class ReolinkCamera:
 
 
 if __name__ == "__main__":
-    camera_object = ReolinkCamera("cpu")
+    camera_object = ReolinkCamera()
     camera_object.run()
