@@ -13,6 +13,6 @@ inference:
     password: "040401"
     ip: "192.168.0.3"
     port: "554"
-  opsua:
+  opcua:
     url: "opc.tcp://10.35.91.101:4840"
 
