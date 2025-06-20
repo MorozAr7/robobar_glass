@@ -39,6 +39,7 @@ class ReolinkCamera:
             ret = self.connect_to_server()
             if ret:
                 break
+            time.sleep(0.05)
 
         self.node_lists = self.get_opcua_nodes_list()
 
@@ -150,6 +151,7 @@ class ReolinkCamera:
                 frame_counter += 1
                 fps_str = str(frame_counter / (time.time() - since))[:4]
                 print("FPS camera {}".format(camera_index), fps_str, predictions)
+                time.sleep(0.05)
 
     def extract_squares(self, frame, camera_index):
         crops = []

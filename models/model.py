@@ -5,7 +5,7 @@ import torchvision
 class Model(torch.nn.Module):
     def __init__(self):
         super(Model, self).__init__()
-        self.model = torchvision.models.convnext_tiny(pretrained=True)
+        self.model = torchvision.models.convnext_tiny(pretrained=False)
         self.model.classifier[-1] = torch.nn.Linear(768, 1)
         
     def forward(self, x):
