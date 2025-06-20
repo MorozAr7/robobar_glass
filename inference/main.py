@@ -7,7 +7,7 @@ import numpy as np
 from threading import Thread
 from queue import Queue
 from models.model import Model
-from training.data_augmentation_kornia import transform_normalize
+from training.data_augmentation import transform_normalize
 import torch
 from opcua import Client, ua
 from omegaconf import OmegaConf

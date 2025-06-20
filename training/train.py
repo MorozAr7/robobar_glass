@@ -11,7 +11,7 @@ import cv2
 from torch.utils.data import DataLoader
 from train_utils import *
 from tqdm import tqdm
-from data_augmentation_kornia import transform_normalize, transform_augment
+from training.data_augmentation import transform_normalize, transform_augment
 
 class Trainer:
     def __init__(self):
