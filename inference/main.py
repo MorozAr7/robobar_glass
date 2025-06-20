@@ -23,7 +23,7 @@ class ReolinkCamera:
         self.cam_ip = self.cfg.inference.camera.ip
         self.cam_port = self.cfg.inference.camera.port
         
-        self.model_weights = "./MainModel.pt"
+        self.model_weights = "./main_model.pt"
         self.device = self.cfg.inference.model.device
         
         self.model = self.initialize_model()

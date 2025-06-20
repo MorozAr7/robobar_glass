@@ -2,3 +2,4 @@
 /debug
 /garbage
 /weights
+/inference/main_model.pt
