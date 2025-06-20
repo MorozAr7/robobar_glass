@@ -1,0 +1,18 @@
+training:
+  lr_min: 1.0e-5
+  lr_max: 1.0e-3 # base lr for 1 gpu and batch_size=20, before apllied scaling rule
+  grad_clip_norm: 100.0
+inference:
+  model:
+    crop_size: 115
+    input_size: 128
+    threshold: 0.5
+    device: "cuda" # or "cpu" or "mps"
+  camera:
+    username: "Artem"
+    password: "040401"
+    ip: "192.168.0.3"
+    port: "554"
+  opsua:
+    url: "opc.tcp://10.35.91.101:4840"
+
