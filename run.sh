@@ -1,0 +1,1 @@
+jetson-containers run -v /home/testbed/Robobar:/Robobar $(autotag l4t-pytorch) bash -c "pip3 install kornia && pip3 install opcua && pip3 install omegaconf && cd /Robobar/robobar_glass/inference && python3 main.py "
