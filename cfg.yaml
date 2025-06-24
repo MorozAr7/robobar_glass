@@ -7,7 +7,7 @@ inference:
     crop_size: 115
     input_size: 128
     threshold: 0.5
-    device: "cuda" # or "cpu" or "mps"
+    device: "cpu" # or "cpu" or "mps"
   camera:
     username: "Artem"
     password: "040401"
@@ -15,4 +15,7 @@ inference:
     port: "554"
   opcua:
     url: "opc.tcp://10.35.91.101:4840"
+  fastapi:
+    host: "127.0.0.1"
+    port: 8000
 

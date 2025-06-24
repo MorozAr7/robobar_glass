@@ -4,16 +4,20 @@ sys.path.insert(1, "/".join(os.getcwd().split("/")[:-1]))
 import time
 import cv2
 import numpy as np
-from threading import Thread
+from threading import Thread, Lock
 from queue import Queue
 from models.model import Model
 from training.data_augmentation import transform_normalize
 import torch
-from opcua import Client, ua
+# from opcua import Client, ua
 from omegaconf import OmegaConf
 
+from fastapi import FastAPI, HTTPException
+from typing import List, Dict, Any
+import uvicorn
 
-class ReolinkCamera:
+
+class RobobarGlassRecognition:
     def __init__(self):
 
         self.cfg = OmegaConf.load("../cfg.yaml")
@@ -31,54 +35,53 @@ class ReolinkCamera:
         self.transform_normalize = transform_normalize.to(self.device)
         
         self.queues = [Queue(), Queue()]
+        self.lock = [Lock(), Lock()]
 
-        self.opcua_url = self.cfg.inference.opcua.url
-        self.client = Client(self.opcua_url)
-
-        while True:
-            ret = self.connect_to_server()
-            if ret:
-                break
-            time.sleep(0.05)
-
-        self.node_lists = self.get_opcua_nodes_list()
-
-        self.read_cam_left_thread = Thread(target=self.read_camera,
-                                          args=(0,))
-        self.read_cam_right_thread = Thread(target=self.read_camera,
-                                          args=(1,))
+        self.latest_predictions = self.init_predictions()
         
-        self.crop_size = self.cfg.inference.crop_size
+        self.read_cam_left_thread = Thread(target=self.get_and_process,
+                                          args=(0,))
+        self.read_cam_right_thread = Thread(target=self.get_and_process,
+                                          args=(1,))
+
+        
+        self.crop_size = self.cfg.inference.model.crop_size
         self.crop_coords = self.get_crop_coords()
         self.input_size = self.cfg.inference.model.input_size
         self.threshold = self.cfg.inference.model.threshold
 
-    def connect_to_server(self):
-        try:
-            self.client.connect()
-            print("Successfully connected to OPCUA server")
-            return True
-        except:
-            print("THE SERVER IS UNREACHABLE")
-            return False
+        self.fastapi_host = self.cfg.inference.fastapi.host
+        self.fastapi_port = self.cfg.inference.fastapi.port
 
-    def get_opcua_nodes_list(self):
+
+        self.app = FastAPI()
+        self.setup_api_routes()
+
+
+    def run_fastapi_app(self):
+        print("🚀 Starting FastAPI server. Go to http://127.0.0.1:8000/results")
+        uvicorn.run(self.app, host=self.fastapi_host, port=self.fastapi_port)
+
+
+    def setup_api_routes(self):
+        @self.app.get("/")
+        def read_root():
+            return {"message": "Functional Update API is running. Call the `update_results` function to change the state."}
+
+        @self.app.get("/results", response_model=Dict[int, List[bool]])
+        def get_results_by_camera():
+            return self.latest_predictions
+    
+    def init_predictions(self):
+        predictions = {0: [None, None, None, None],
+                        1: [None, None, None, None]}
         
-        node_list_left = [
-            self.client.get_node('ns=3;s="Lights"."positionOccupied"[10]'),
-            self.client.get_node('ns=3;s="Lights"."positionOccupied"[9]'),
-            self.client.get_node('ns=3;s="Lights"."positionOccupied"[8]'),
-            self.client.get_node('ns=3;s="Lights"."positionOccupied"[7]')
-        ]
-        node_list_right = [
-            self.client.get_node('ns=3;s="Lights"."positionOccupied"[4]'),
-            self.client.get_node('ns=3;s="Lights"."positionOccupied"[3]'),
-            self.client.get_node('ns=3;s="Lights"."positionOccupied"[2]'),
-            self.client.get_node('ns=3;s="Lights"."positionOccupied"[1]')
-        ]
-        nodes_lists = [node_list_left, node_list_right]
+        return predictions
+                      
 
-        return nodes_lists 
+    def update_predictions(self, camera_index, results):
+        with self.lock[camera_index]:
+            self.latest_predictions[camera_index] = results
 
     def get_crop_coords(self):
         crop_coords = {"0": (1325 + self.crop_size, 1220),
@@ -102,56 +105,38 @@ class ReolinkCamera:
 
         return model
 
-    def run(self):
+    def run_prediction_app(self):
         self.read_cam_left_thread.daemon = True
         self.read_cam_right_thread.daemon = True
 
         self.read_cam_left_thread.start()
         self.read_cam_right_thread.start()
 
-        self.read_cam_left_thread.join()
-        self.read_cam_right_thread.join()
 
-    @staticmethod
-    def get_ua_boolean_object(boolean_value):
-        if type(boolean_value) is not bool:
-            raise TypeError(f'Parameter boolean_value is not boolean (passed {type(boolean_value)} ).')
-        ua_boolean = ua.DataValue(ua.Variant(boolean_value, ua.VariantType.Boolean))
-        ua_boolean.ServerTimestamp = None
-        ua_boolean.SourceTimestamp = None
-        return ua_boolean
 
-    def update_results(self, results, nodes):
-        results_opcua_array = [self.get_ua_boolean_object(results[0]),
-                               self.get_ua_boolean_object(results[1]),
-                               self.get_ua_boolean_object(results[2]),
-                               self.get_ua_boolean_object(results[3])]
-        try:
-            self.client.set_values(nodes, results_opcua_array)
-            print("Results updated")
-        except:
-            print("Failed to update results")
-            self.connect_to_server()
-
-    def get_camera_url(self, index):
-        url = f"tsp://{self.cam_username}:{self.cam_password}@{self.cam_ip}:{self.cam_port}/h264Preview_0{index + 1}_main"
+    def get_camera_url(self, cam_idx):
+        url = f"tsp://{self.cam_username}:{self.cam_password}@{self.cam_ip}:{self.cam_port}/h264Preview_0{cam_idx + 1}_main"
         return url
 
-    def read_camera(self, camera_index):
+    def get_and_process(self, camera_index):
         camera_url = self.get_camera_url(camera_index)
         cap = cv2.VideoCapture(camera_url)
-        frame_counter = 0
-        since = time.time()
 
         while True:
             ret, frame = cap.read()
             if ret:
                 predictions = self.get_prediction(frame, camera_index).tolist()
-                self.update_results(predictions, self.node_lists[camera_index])
-                frame_counter += 1
-                fps_str = str(frame_counter / (time.time() - since))[:4]
-                print("FPS camera {}".format(camera_index), fps_str, predictions)
+                self.update_predictions(camera_index, predictions)
+
                 time.sleep(0.05)
+
+
+    # def get_and_process(self, camera_index):
+    #     while True:
+    #         predictions = np.random.choice([True, False], size=4).tolist()  # Simulated predictions
+    #         self.update_predictions(camera_index, predictions)
+
+    #         time.sleep(0.05)
 
     def extract_squares(self, frame, camera_index):
         crops = []
@@ -183,5 +168,8 @@ class ReolinkCamera:
 
 
 if __name__ == "__main__":
-    camera_object = ReolinkCamera()
-    camera_object.run()
+    robobar_glass_recognition = RobobarGlassRecognition()
+    print(f"Starting Robobar Glass Recognition")
+    robobar_glass_recognition.run_prediction_app()
+    print(f"Starting FastAPI server")
+    robobar_glass_recognition.run_fastapi_app()

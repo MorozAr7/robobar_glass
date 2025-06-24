@@ -3,3 +3,4 @@
 /garbage
 /weights
 /inference/main_model.pt
+/tests
