@@ -7,7 +7,8 @@ class Model(torch.nn.Module):
         super(Model, self).__init__()
         self.model = torchvision.models.convnext_tiny(pretrained=False)
         self.model.classifier[-1] = torch.nn.Linear(768, 1)
-        
+
+    
     def forward(self, x):
         return self.model(x)
 

@@ -1,0 +1,6 @@
+opencv-python==4.10.0.84
+kornia
+fastapi
+uvicorn
+opcua
+omegaconf
